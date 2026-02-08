@@ -15,7 +15,10 @@ NAME_WRONG = "Jessica Petree"
 NAME_CORRECT = "Jess Petree"
 BACKUP_SUFFIX = ".pre_username_fix_backup"
 
-# Sentinel file: when present, skip the fix (run-once behavior)
+# Set to "1" in Railway Variables to run the fix again (ignores sentinel)
+FORCE_RERUN = os.environ.get("FORCE_USERNAME_FIX", "").strip().lower() in ("1", "true", "yes")
+
+
 def get_sentinel_path(db_path: str) -> str:
     return os.path.join(os.path.dirname(db_path), ".username_fix_applied")
 
@@ -98,9 +101,11 @@ def show_users(cursor) -> list:
 def fix_username(db_path: str) -> bool:
     """Apply the username fix once; create sentinel on success."""
     sentinel = get_sentinel_path(db_path)
-    if os.path.exists(sentinel):
+    if os.path.exists(sentinel) and not FORCE_RERUN:
         print("✓ Username fix already applied (sentinel exists). Skipping.")
         return True
+    if FORCE_RERUN:
+        print("→ FORCE_USERNAME_FIX=1: running fix even if sentinel exists.")
 
     try:
         conn = sqlite3.connect(db_path)
@@ -147,13 +152,20 @@ def fix_username(db_path: str) -> bool:
 
         elif jessica_row and jess_row:
             print(f"\n⚠ Both '{NAME_WRONG}' and '{NAME_CORRECT}' exist.")
-            print("→ Deleting 'Jessica Petree' account (chats stay with 'Jess Petree')...")
             jessica_id = jessica_row[0]
+            jess_id = jess_row[0]
             _backup_db(db_path)
+            # Merge: give Jess account the same login (email + password) as Jessica, then remove Jessica.
+            # That way you log in with your current email/password and get Jess's chats.
+            print("→ Merging: copying Jessica's login (email+password) to Jess, then removing Jessica...")
+            cursor.execute(
+                "UPDATE auth SET email = (SELECT email FROM auth WHERE id = ?), password = (SELECT password FROM auth WHERE id = ?) WHERE id = ?",
+                (jessica_id, jessica_id, jess_id),
+            )
             cursor.execute("DELETE FROM auth WHERE id = ?", (jessica_id,))
             cursor.execute("DELETE FROM user WHERE id = ?", (jessica_id,))
             conn.commit()
-            print("✓ Deleted Jessica Petree account. Log in with Jess Petree.")
+            print("✓ Merged. Log in with your current email and password — you'll see Jess Petree with all chats.")
 
         else:
             print(f"\n✓ No change needed (no '{NAME_WRONG}' account found).")

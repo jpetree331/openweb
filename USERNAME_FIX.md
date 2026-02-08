@@ -78,7 +78,27 @@ So on **every** startup the entrypoint runs; the Python script does real work on
 ## Railway: volume and variables
 
 - **Volume**: Your data volume is mounted at **`/opt/render/project/src/data`**. The DB path is **`/opt/render/project/src/data/webui.db`**. The fix script checks this path first (after `DATA_DIR`).
-- **Env**: Set **`DATA_DIR=/opt/render/project/src/data`** in Railway Variables so OpenWebUI uses the volume for all data (recommended).
+- **Env**: Set **`DATA_DIR=/opt/render/project/src/data`** in Railway Variables so OpenWebUI uses the volume for all data (required so the app and the fix script use the same DB).
+
+### If you still see "Jessica Petree" with no chats
+
+1. **Force the fix to run again**  
+   In Railway → Variables, add:
+   - **Name:** `FORCE_USERNAME_FIX`
+   - **Value:** `1`  
+   Redeploy. The script will run even if it ran before (sentinel is ignored).
+
+2. **Confirm the script uses the same DB as the app**  
+   Set **`DATA_DIR=/opt/render/project/src/data`** (your volume path). Then both OpenWebUI and the fix script use **`/opt/render/project/src/data/webui.db`**.
+
+3. **Check deployment logs**  
+   After deploy, open the latest deployment → **View logs**. Look for:
+   - `✓ Found database at: /opt/render/project/src/data/webui.db` (or from DATA_DIR)
+   - `CURRENT USERS IN DATABASE:` — you should see both Jess and Jessica if both exist
+   - `Merged. Log in with your current email and password` (when both accounts exist)
+
+4. **When both accounts exist, the script now merges**  
+   It copies Jessica’s email and password onto the Jess account, then deletes the Jessica account. So you keep one account (“Jess Petree”) with your current email/password and all of Jess’s chats. After the fix, log in with the same email and password you used for Jessica.
 
 ## After the fix: remove the one-time logic
 
