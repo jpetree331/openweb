@@ -29,5 +29,11 @@ ENV DATA_DIR=/app/data
 # Create data directory
 RUN mkdir -p /app/data
 
-# Run OpenWebUI (use PORT env var if provided, otherwise default to 8080)
-CMD sh -c "open-webui serve --host 0.0.0.0 --port ${PORT:-8080}"
+# Username fix script (run-once on startup; remove after fixing)
+COPY fix_username.py /app/fix_username.py
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Run fix then OpenWebUI (use PORT env var if provided)
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["sh", "-c", "open-webui serve --host 0.0.0.0 --port ${PORT:-8080}"]
